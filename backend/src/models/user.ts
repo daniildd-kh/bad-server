@@ -1,12 +1,13 @@
 /* eslint-disable no-param-reassign */
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import mongoose, { Document, HydratedDocument, Model, Types } from 'mongoose'
+import mongoose, { Document, HydratedDocument, Model, ObjectId, Types } from 'mongoose'
 import validator from 'validator'
 import md5 from 'md5'
 
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../config'
 import UnauthorizedError from '../errors/unauthorized-error'
+import { IOrder } from './order'
 
 export enum Role {
     Customer = 'customer',
@@ -22,7 +23,7 @@ export interface IUser extends Document {
     phone: string
     totalAmount: number
     orderCount: number
-    orders: Types.ObjectId[]
+    orders: IOrder[]
     lastOrderDate: Date | null
     lastOrder: Types.ObjectId | null
 }
@@ -135,7 +136,7 @@ userSchema.methods.generateAccessToken = function generateAccessToken() {
     // Создание accessToken токена возможно в контроллере авторизации
     return jwt.sign(
         {
-            _id: user._id.toString(),
+            _id: (user as { _id: ObjectId })._id.toString(),
             email: user.email,
         },
         ACCESS_TOKEN.secret,
@@ -152,7 +153,7 @@ userSchema.methods.generateRefreshToken =
         // Создание refresh токена возможно в контроллере авторизации/регистрации
         const refreshToken = jwt.sign(
             {
-                _id: user._id.toString(),
+                _id: (user as { _id: ObjectId })._id.toString(),
             },
             REFRESH_TOKEN.secret,
             {
