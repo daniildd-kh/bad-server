@@ -24,7 +24,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         )
         return res.json({
             success: true,
-            user,
+            user: user.toJSON(),
             accessToken,
         })
     } catch (err) {
