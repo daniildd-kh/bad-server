@@ -1,17 +1,19 @@
 import { Joi, celebrate } from 'celebrate'
 import { Types } from 'mongoose'
+
 // eslint-disable-next-line no-useless-escape
-export const phoneRegExp = /^\+?7\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$/
+// export const phoneRegExp = /^(\+\d+)?(?:\s|-?|\(?\d+\)?)+$/
+export const phoneRegExp = /^(\+\d{1,4})?(?:\s|-?|\(?\d{1,3}\)?){1,9}$/
 
 export enum PaymentType {
     Card = 'card',
     Online = 'online',
 }
 
-// валидация id
 export const validateOrderBody = celebrate({
     body: Joi.object().keys({
         items: Joi.array()
+            .max(50)
             .items(
                 Joi.string().custom((value, helpers) => {
                     if (Types.ObjectId.isValid(value)) {
@@ -31,13 +33,16 @@ export const validateOrderBody = celebrate({
                     'Указано не валидное значение для способа оплаты, возможные значения - "card", "online"',
                 'string.empty': 'Не указан способ оплаты',
             }),
-        email: Joi.string().email().required().messages({
-            'string.empty': 'Не указан email',
-        }),
-        phone: Joi.string().required().max(21).pattern(phoneRegExp).messages({
+        email: Joi.string()
+            .max(64)
+            .message('Поле "email" должно быть короче 64 символов')
+            .email()
+            .required()
+            .messages({
+                'string.empty': 'Не указан email',
+            }),
+        phone: Joi.string().required().max(15).pattern(phoneRegExp).messages({
             'string.empty': 'Не указан телефон',
-            'string.pattern.base': 'Невалидный телефон',
-            'string.max': 'Максимальная длина поля "phone" - 21',
         }),
         address: Joi.string().required().messages({
             'string.empty': 'Не указан адрес',
@@ -49,8 +54,6 @@ export const validateOrderBody = celebrate({
     }),
 })
 
-// валидация товара.
-// name и link - обязательные поля, name - от 2 до 30 символов, link - валидный url
 export const validateProductBody = celebrate({
     body: Joi.object().keys({
         title: Joi.string().required().min(2).max(30).messages({
@@ -82,8 +85,8 @@ export const validateProductUpdateBody = celebrate({
             fileName: Joi.string().required(),
             originalName: Joi.string().required(),
         }),
-        category: Joi.string(),
-        description: Joi.string(),
+        category: Joi.string().max(20),
+        description: Joi.string().max(200),
         price: Joi.number().allow(null),
     }),
 })
@@ -112,6 +115,8 @@ export const validateUserBody = celebrate({
         }),
         email: Joi.string()
             .required()
+            .max(64)
+            .message('Поле "email" должно быть короче 64 символов')
             .email()
             .message('Поле "email" должно быть валидным email-адресом')
             .messages({
@@ -124,6 +129,8 @@ export const validateAuthentication = celebrate({
     body: Joi.object().keys({
         email: Joi.string()
             .required()
+            .max(64)
+            .message('Поле "email" должно быть короче 64 символов')
             .email()
             .message('Поле "email" должно быть валидным email-адресом')
             .messages({

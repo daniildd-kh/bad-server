@@ -1,9 +1,10 @@
 import { NextFunction, Request, Response } from 'express'
 import { constants } from 'http2'
-import { UPLOAD_PATH, MIN_UPLOAD_FILE_SIZE } from '../config';
+import * as fs from 'node:fs/promises'
+import sanitizeHtml from 'sanitize-html'
 import BadRequestError from '../errors/bad-request-error'
-
-const magicSignature = ['ffd8ffe0', '89504e47', 'ffd8ffe1', 'ffd8ffe2', '47494638']
+import { fileSizeLimits } from '../config'
+import { checkSignature, Tmimetype } from '../utils/checkFileType'
 
 export const uploadFile = async (
     req: Request,
@@ -13,19 +14,49 @@ export const uploadFile = async (
     if (!req.file) {
         return next(new BadRequestError('Файл не загружен'))
     }
+
+    const mimetype = req.file.mimetype as Tmimetype
+
+    if (
+        (req.file.size < fileSizeLimits.minSize ||
+            !req.file ||
+            !req.file.path) &&
+        mimetype !== 'image/svg+xml'
+    ) {
+        await fs.unlink(req.file.path)
+        return next(new BadRequestError('Файл слишком мал'))
+    }
+
+    const filePath = req.file.path
+    const isImage = await checkSignature({ mimetype, filePath })
+    if (!isImage) {
+        await fs.unlink(filePath)
+        return next(new BadRequestError('файл не соответствует типу'))
+    }
+    if (mimetype === 'image/svg+xml') {
+        let svg = await fs.readFile(filePath, { encoding: 'utf-8' })
+        svg = sanitizeHtml(svg, {
+            allowedTags: [
+                'svg',
+                'g',
+                'defs',
+                'linearGradient',
+                'stop',
+                'circle',
+            ],
+            allowedAttributes: false,
+            parser: {
+                lowerCaseTags: false,
+                lowerCaseAttributeNames: false,
+            },
+        })
+        fs.writeFile(filePath, svg, { encoding: 'utf-8' })
+    }
     try {
-        if (req.file.size < MIN_UPLOAD_FILE_SIZE) {
-            return next(new BadRequestError('Минимальный размер файла 2Kб'))
-        }
-
-        if (req.file.buffer) {
-            const fileSignature = req.file.buffer.subarray(0, 4).toString('hex');
-            if (!magicSignature.includes(fileSignature)) {
-                return next(new BadRequestError('Невалидная сигнатура файла'))
-            }
-        }
-
-        const fileName = `/${UPLOAD_PATH}/${crypto.randomUUID().slice(0, 8)}.${req.file.mimetype.split('/')[1]}`;
+        const fileName = process.env.UPLOAD_PATH
+            ? `/${process.env.UPLOAD_PATH}/${req.file.filename}`
+            : `/${req.file?.filename}`
+        console.log(req.file)
         return res.status(constants.HTTP_STATUS_CREATED).send({
             fileName,
             originalName: req.file?.originalname,

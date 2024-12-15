@@ -9,17 +9,18 @@ import {
     updateCurrentUser,
 } from '../controllers/auth'
 import auth from '../middlewares/auth'
-import { sanitizeMiddleware } from '../middlewares/sanitize'
-import { doubleCsrfProtection } from '../middlewares/csrf-handler'
+import { validateAuthentication, validateUserBody } from '../middlewares/validations'
+import sanitizeBody from '../middlewares/sanitizations'
+import { csrfProtection } from '../middlewares/csrfProtection'
 
 const authRouter = Router()
 
 authRouter.get('/user', auth, getCurrentUser)
-authRouter.patch('/me', doubleCsrfProtection, auth, sanitizeMiddleware, updateCurrentUser)
+authRouter.patch('/me', csrfProtection, auth, validateUserBody, sanitizeBody(), updateCurrentUser)
 authRouter.get('/user/roles', auth, getCurrentUserRoles)
-authRouter.post('/login', sanitizeMiddleware, login)
+authRouter.post('/login',validateAuthentication, sanitizeBody(), login)
 authRouter.get('/token', refreshAccessToken)
 authRouter.get('/logout', logout)
-authRouter.post('/register', sanitizeMiddleware, register)
+authRouter.post('/register',validateUserBody, sanitizeBody(), register)
 
 export default authRouter

@@ -24,7 +24,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         )
         return res.json({
             success: true,
-            user: user.toJSON(),
+            user,
             accessToken,
         })
     } catch (err) {
@@ -84,7 +84,6 @@ const getCurrentUser = async (
     }
 }
 
-// Можно лучше: вынести общую логику получения данных из refresh токена
 const deleteRefreshTokenInUser = async (
     req: Request,
     _res: Response,
@@ -117,7 +116,6 @@ const deleteRefreshTokenInUser = async (
     return user
 }
 
-// Реализация удаления токена из базы может отличаться
 // GET  /auth/logout
 const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
