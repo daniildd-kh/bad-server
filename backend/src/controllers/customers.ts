@@ -1,8 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery } from 'mongoose'
 import NotFoundError from '../errors/not-found-error'
-import Order from '../models/order'
+import Order from '../models/order';
 import User, { IUser } from '../models/user'
+import { enforceLimit } from '../middlewares/sanitize';
 
 // TODO: Добавить guard admin
 // eslint-disable-next-line max-len
@@ -28,7 +29,7 @@ export const getCustomers = async (
             orderCountTo,
             search,
         } = req.query
-
+        const newLimit = enforceLimit(Number(limit), 10);
         const filters: FilterQuery<Partial<IUser>> = {}
 
         if (registrationDateFrom) {
@@ -116,8 +117,8 @@ export const getCustomers = async (
 
         const options = {
             sort,
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (Number(page) - 1) * newLimit,
+            limit: newLimit,
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -137,7 +138,7 @@ export const getCustomers = async (
         ])
 
         const totalUsers = await User.countDocuments(filters)
-        const totalPages = Math.ceil(totalUsers / Number(limit))
+        const totalPages = Math.ceil(totalUsers / newLimit)
 
         res.status(200).json({
             customers: users,
@@ -145,7 +146,7 @@ export const getCustomers = async (
                 totalUsers,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(limit),
+                pageSize: newLimit,
             },
         })
     } catch (error) {

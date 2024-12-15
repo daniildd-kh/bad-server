@@ -15,13 +15,10 @@ const storage = multer.diskStorage({
             null,
             join(
                 __dirname,
-                process.env.UPLOAD_PATH_TEMP
-                    ? `../public/${process.env.UPLOAD_PATH_TEMP}`
-                    : '../public'
+                `../public/${process.env.UPLOAD_PATH_TEMP}`
             )
         )
     },
-
     filename: (
         _req: Request,
         file: Express.Multer.File,
@@ -51,4 +48,4 @@ const fileFilter = (
     return cb(null, true)
 }
 
-export default multer({ storage, fileFilter })
+export default multer({ storage, fileFilter, limits: { fileSize:  5 * 1024 * 1024 } })

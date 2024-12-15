@@ -12,6 +12,7 @@ import {
     validateProductUpdateBody,
 } from '../middlewares/validations'
 import { Role } from '../models/user'
+import { sanitizeMiddleware } from '../middlewares/sanitize'
 
 const productRouter = Router()
 
@@ -21,6 +22,7 @@ productRouter.post(
     auth,
     roleGuardMiddleware(Role.Admin),
     validateProductBody,
+    sanitizeMiddleware,
     createProduct
 )
 productRouter.delete(
@@ -28,6 +30,7 @@ productRouter.delete(
     auth,
     roleGuardMiddleware(Role.Admin),
     validateObjId,
+    sanitizeMiddleware,
     deleteProduct
 )
 productRouter.patch(
@@ -36,6 +39,7 @@ productRouter.patch(
     roleGuardMiddleware(Role.Admin),
     validateObjId,
     validateProductUpdateBody,
+    sanitizeMiddleware,
     updateProduct
 )
 

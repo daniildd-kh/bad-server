@@ -16,25 +16,9 @@ services:
     volumes:
       - db:/data/db
     ports:
-      - 2701:27017
+      - 27018:27017
     networks:
       - internal
-
-  backend:
-    restart: always
-    build:
-      context: backend
-    env_file:
-      - backend/.env
-    volumes:
-      - ./backend/src:/app/src
-      - public:/app/src/public
-    ports:
-      - 3000:3000
-    networks:
-      - internal
-    depends_on:
-      - mongo
 
   server:
     build:
@@ -44,10 +28,9 @@ services:
     volumes:
       - frontend:/var/app
       - public:/var/public
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/nginx-dev.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - frontend
-      - backend
     networks:
       - internal
 
