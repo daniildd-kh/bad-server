@@ -13,7 +13,7 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
     let payload: JwtPayload | null = null
     const authHeader = req.header('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-        return next( new UnauthorizedError('Невалидный токен'))
+        throw new UnauthorizedError('Невалидный токен')
     }
     try {
         const accessTokenParts = authHeader.split(' ')
@@ -22,7 +22,7 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
 
         const user = await UserModel.findOne(
             {
-                _id: new Types.ObjectId(payload.sub),
+                _id: new Types.ObjectId(payload._id),
             },
             { password: 0, salt: 0 }
         )

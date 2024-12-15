@@ -12,6 +12,7 @@ export const ACCESS_TOKEN = {
 export const REFRESH_TOKEN = {
     secret: process.env.AUTH_REFRESH_TOKEN_SECRET || 'secret-dev',
     expiry: process.env.AUTH_REFRESH_TOKEN_EXPIRY || '7d',
+    secure: process.env.NODE_ENV === 'production',
     cookie: {
         name: 'refreshToken',
         options: {
@@ -22,37 +23,6 @@ export const REFRESH_TOKEN = {
             path: '/',
         } as CookieOptions,
     },
-}
-
-// npm i express-rate-limit
-
-let corsOrigin: string | string[]
-if (process.env.ORIGIN_ALLOW) {
-    corsOrigin =
-        process.env.ORIGIN_ALLOW?.indexOf(',') >= 0
-            ? process.env.ORIGIN_ALLOW?.split(',')
-            : process.env.ORIGIN_ALLOW
-} else {
-    corsOrigin = 'http://localhost'
-}
-
-export const corsOptions = {
-    origin: corsOrigin,
-    credentials: true,
-}
-
-
-export const rateLimiterOptions = {
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	limit: 40, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-	standardHeaders: true, // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-}
-
-const CSRF_SECRET = process.env.CSRF_SECRET
-
-if (!CSRF_SECRET) {
-    console.log('DANGER! no secret provided!', process.env)
 }
 
 export const doubleCsrfOptions: DoubleCsrfConfigOptions = {
@@ -67,9 +37,20 @@ export const doubleCsrfOptions: DoubleCsrfConfigOptions = {
     },
 }
 
-export const isRegenerateCsrfToken: boolean = true
+export const allowedOrigins =
+    process.env.ORIGIN_ALLOW && process.env.ORIGIN_ALLOW.indexOf(',') >= 0
+        ? process.env.ALLOWED_ORIGINS?.split(',')
+        : process.env.ORIGIN_ALLOW || 'http://localhost'
 
-export const fileSizeLimits = {
+export const rateLimitConfig = {
+    windowMs: 15 * 60 * 1000,
+    max: 40,
+    message: 'Слишком много запросов с этого IP, попробуйте позже',
+    standardHeaders: true,
+    legacyHeaders: false,
+}
+
+export const fileSizeConfig = {
     maxSize: Number(process.env.MAX_FILE_SIZE) || 10e6,
     minSize: Number(process.env.MIN_FILE_SIZE) || 2e3,
 }
