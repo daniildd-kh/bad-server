@@ -5,7 +5,7 @@ import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
 import Product, { IProduct } from '../models/product'
 import User from '../models/user'
-import { enforceLimit } from '../middlewares/sanitize'
+import limitPagination from '../utils/limitPagination'
 
 // eslint-disable-next-line max-len
 // GET /orders?page=2&limit=5&sort=totalAmount&order=desc&orderDateFrom=2024-07-01&orderDateTo=2024-08-01&status=delivering&totalAmountFrom=100&totalAmountTo=1000&search=%2B1
@@ -116,7 +116,7 @@ export const getOrders = async (
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
-        const newLimit = enforceLimit(Number(limit), 10)
+        const newLimit = limitPagination(Number(limit), 10)
 
         aggregatePipeline.push(
             { $sort: sort },
@@ -161,7 +161,7 @@ export const getOrdersCurrentUser = async (
     try {
         const userId = res.locals.user._id
         const { search, page = 1, limit = 5 } = req.query
-        const newLimit = enforceLimit(Number(limit), 10)
+        const newLimit = limitPagination(Number(limit), 10)
         const options = {
             skip: (Number(page) - 1) * newLimit,
             limit: newLimit,

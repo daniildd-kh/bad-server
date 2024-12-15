@@ -30,9 +30,14 @@ export type ApiListResponse<Type> = {
     items: Type[]
 }
 
+export type ApiCSRFToken = {
+    token: string;
+}
+
 class Api {
     private readonly baseUrl: string
     protected options: RequestInit
+    protected csrfToken?: string;
 
     constructor(baseUrl: string, options: RequestInit = {}) {
         this.baseUrl = baseUrl
@@ -41,25 +46,48 @@ class Api {
                 ...((options.headers as object) ?? {}),
             },
         }
+
+        this.init();
+    }
+
+    private async init() {
+        this.csrfToken = await this.getCSRFToken();
+    }
+
+    protected async getCSRFToken(): Promise<string> {
+        try {
+            const res = await fetch(`${this.baseUrl}/csrf-token`);
+            const { token } = await this.handleResponse<ApiCSRFToken>(res);
+
+            return token;
+        } catch (error) {
+            return Promise.reject(error);
+        }
     }
 
     protected handleResponse<T>(response: Response): Promise<T> {
         return response.ok
             ? response.json()
             : response
-                  .json()
-                  .then((err) =>
-                      Promise.reject({ ...err, statusCode: response.status })
-                  )
+                .json()
+                .then((err) =>
+                    Promise.reject({ ...err, statusCode: response.status })
+                )
     }
 
     protected async request<T>(endpoint: string, options: RequestInit) {
         try {
+            const headers = {
+                ...this.options.headers,
+                ...options.headers,
+                'x-csrf-token': this.csrfToken || "",
+            }
             const res = await fetch(`${this.baseUrl}${endpoint}`, {
                 ...this.options,
                 ...options,
+                headers
             })
-            return await this.handleResponse<T>(res)
+            return this.handleResponse<T>(res)
         } catch (error) {
             return Promise.reject(error)
         }
@@ -77,14 +105,14 @@ class Api {
         options: RequestInit
     ) => {
         try {
-            return await this.request<T>(endpoint, options)
+            return this.request<T>(endpoint, options)
         } catch (error) {
             const refreshData = await this.refreshToken()
             if (!refreshData.success) {
                 return Promise.reject(refreshData)
             }
             setCookie('accessToken', refreshData.accessToken)
-            return await this.request<T>(endpoint, {
+            return this.request<T>(endpoint, {
                 ...options,
                 headers: {
                     ...options.headers,

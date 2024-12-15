@@ -1,63 +1,38 @@
 import { NextFunction, Request, Response } from 'express'
 import { constants } from 'http2'
+import { UPLOAD_PATH, MIN_UPLOAD_FILE_SIZE } from '../config';
 import BadRequestError from '../errors/bad-request-error'
-import multer from 'multer'
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/')  
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname)  
-    }
-})
-
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 5 * 1024 * 1024,  
-    },
-    fileFilter: (req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-            return cb(new BadRequestError('Только изображения разрешены'))
-        }
-        cb(null, true)
-    }
-}).single('file') 
+const magicSignature = ['ffd8ffe0', '89504e47', 'ffd8ffe1', 'ffd8ffe2', '47494638']
 
 export const uploadFile = async (
     req: Request,
     res: Response,
     next: NextFunction
 ) => {
-    upload(req, res, (err: any) => {
-        if (err instanceof multer.MulterError) {
-            if (err.code === 'LIMIT_FILE_SIZE') {
-                return next(new BadRequestError('Размер файла превышает допустимый лимит'))
+    if (!req.file) {
+        return next(new BadRequestError('Файл не загружен'))
+    }
+    try {
+        if (req.file.size < MIN_UPLOAD_FILE_SIZE) {
+            return next(new BadRequestError('Минимальный размер файла 2Kб'))
+        }
+
+        if (req.file.buffer) {
+            const fileSignature = req.file.buffer.subarray(0, 4).toString('hex');
+            if (!magicSignature.includes(fileSignature)) {
+                return next(new BadRequestError('Невалидная сигнатура файла'))
             }
-            return next(new BadRequestError('Ошибка загрузки файла'))
-        }
-        if (err) {
-            return next(err)
         }
 
-        if (!req.file) {
-            return next(new BadRequestError('Файл не загружен'))
-        }
-
-        try {
-            const fileName = process.env.UPLOAD_PATH
-                ? `/${process.env.UPLOAD_PATH}/${req.file.filename}`
-                : `/${req.file?.filename}`
-
-            return res.status(constants.HTTP_STATUS_CREATED).send({
-                fileName,
-                originalName: req.file?.originalname,
-            })
-        } catch (error) {
-            return next(error)
-        }
-    })
+        const fileName = `/${UPLOAD_PATH}/${crypto.randomUUID().slice(0, 8)}.${req.file.mimetype.split('/')[1]}`;
+        return res.status(constants.HTTP_STATUS_CREATED).send({
+            fileName,
+            originalName: req.file?.originalname,
+        })
+    } catch (error) {
+        return next(error)
+    }
 }
 
 export default {}

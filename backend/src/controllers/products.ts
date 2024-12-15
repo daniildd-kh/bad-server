@@ -2,18 +2,21 @@ import { NextFunction, Request, Response } from 'express'
 import { constants } from 'http2'
 import { Error as MongooseError } from 'mongoose'
 import { join } from 'path'
+import { UPLOAD_PATH, UPLOAD_PATH_TEMP } from '../config'
 import BadRequestError from '../errors/bad-request-error'
 import ConflictError from '../errors/conflict-error'
 import NotFoundError from '../errors/not-found-error'
 import Product from '../models/product'
 import movingFile from '../utils/movingFile'
-import { enforceLimit } from '../middlewares/sanitize'
+import limitPagination from '../utils/limitPagination'
+
+
 
 // GET /product
 const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { page = 1, limit = 5 } = req.query
-        const newLimit = enforceLimit(Number(limit), 10)
+        const newLimit = limitPagination(Number(limit), 10)
         const options = {
             skip: (Number(page) - 1) * newLimit,
             limit: newLimit,
@@ -48,8 +51,8 @@ const createProduct = async (
         if (image) {
             movingFile(
                 image.fileName,
-                join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
-                join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
+                join(__dirname, `../public/${UPLOAD_PATH_TEMP}`),
+                join(__dirname, `../public/${UPLOAD_PATH}`)
             )
         }
 
@@ -89,8 +92,8 @@ const updateProduct = async (
         if (image) {
             movingFile(
                 image.fileName,
-                join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
-                join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
+                join(__dirname, `../public/${UPLOAD_PATH_TEMP}`),
+                join(__dirname, `../public/${UPLOAD_PATH}`)
             )
         }
 

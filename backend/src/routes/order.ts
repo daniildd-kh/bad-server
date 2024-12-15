@@ -11,7 +11,8 @@ import {
 import auth, { roleGuardMiddleware } from '../middlewares/auth'
 import { validateOrderBody } from '../middlewares/validations'
 import { Role } from '../models/user'
-import { sanitizeMiddleware } from '../middlewares/sanitize';
+import { sanitizeMiddleware } from '../middlewares/sanitize'
+import { doubleCsrfProtection } from '../middlewares/csrf-handler'
 
 const orderRouter = Router()
 
@@ -29,6 +30,7 @@ orderRouter.patch(
     '/:orderNumber',
     auth,
     sanitizeMiddleware,
+    doubleCsrfProtection,
     roleGuardMiddleware(Role.Admin),
     updateOrder
 )

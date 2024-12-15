@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery } from 'mongoose'
 import NotFoundError from '../errors/not-found-error'
-import Order from '../models/order';
+import Order from '../models/order'
 import User, { IUser } from '../models/user'
-import { enforceLimit } from '../middlewares/sanitize';
+import limitPagination from '../utils/limitPagination'
 
 // TODO: Добавить guard admin
 // eslint-disable-next-line max-len
@@ -29,7 +29,7 @@ export const getCustomers = async (
             orderCountTo,
             search,
         } = req.query
-        const newLimit = enforceLimit(Number(limit), 10);
+        const newLimit = limitPagination(Number(limit), 10)
         const filters: FilterQuery<Partial<IUser>> = {}
 
         if (registrationDateFrom) {

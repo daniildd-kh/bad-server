@@ -1,17 +1,5 @@
-import { NextFunction, Request, Response } from 'express';
-import xss from 'xss';
-
-import sanitizeHtml from 'sanitize-html';
-
-
-const options = {
-    allowedTags: ['b', 'i', 'em', 'strong', 'a'],
-    allowedAttributes: {
-        a: ['href']
-    },
-};
-
-const sanitize = (html: string) => sanitizeHtml(html, options);
+import { Request, Response, NextFunction } from 'express'
+import { sanitize } from '../utils/sanitizer';
 
 const sanitizeObject = (obj: any): any => {
     if (typeof obj === 'string') {
@@ -30,23 +18,8 @@ const sanitizeObject = (obj: any): any => {
     return obj;
 };
 
-export function sanitizeString(input: string): string {
-    return xss(input);
-}
-
 
 export const sanitizeMiddleware = (req: Request, _res: Response, next: NextFunction) => {
     req.body = sanitizeObject(req.body);
     return next();
 };
-
-
-export function enforceLimit(value: number, max: number): number {
-    return Math.min(value, max);
-}
-
-
-export function isValidString(input: string): boolean {
-    const forbiddenPatterns = /(<script|onload|javascript:|data:)/i;
-    return !forbiddenPatterns.test(input);
-}
