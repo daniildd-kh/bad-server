@@ -1,7 +1,7 @@
 import { Request, Express } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import multer, { FileFilterCallback } from 'multer'
-import fs from 'fs'
+import fs from 'fs/promises'
 import { join, extname } from 'path'
 import { fileSizeConfig } from '../config'
 
@@ -15,7 +15,15 @@ const tempDir = join(
         : '../public'
 )
 
-fs.mkdirSync(tempDir, { recursive: true })
+const createTempDir = async () => {
+    try {
+        await fs.mkdir(tempDir, { recursive: true })
+    } catch (error) {
+        throw new Error('Не удалось создать временную директорию для файлов')
+    }
+}
+
+createTempDir()
 
 const storage = multer.diskStorage({
     destination: (
@@ -31,7 +39,7 @@ const storage = multer.diskStorage({
         file: Express.Multer.File,
         cb: FileNameCallback
     ) => {
-        cb(null, uuidv4().concat(extname(file.originalname)))
+        cb(null, uuidv4() + extname(file.originalname))
     },
 })
 
@@ -49,10 +57,10 @@ const fileFilter = (
     cb: FileFilterCallback
 ) => {
     if (!allowedTypes.includes(file.mimetype)) {
-        return cb(null, false)
+        return cb(null, false) 
     }
 
-    return cb(null, true)
+    return cb(null, true) 
 }
 
 export default multer({

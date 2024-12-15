@@ -1,8 +1,8 @@
-import winston from 'winston'
 import rateLimit from 'express-rate-limit'
 import { errors } from 'celebrate'
 import cookieParser from 'cookie-parser'
-import mongoSanitize from 'express-mongo-sanitize';
+import mongoSanitize from 'express-mongo-sanitize'
+import helmet from 'helmet'
 import cors from 'cors'
 import 'dotenv/config'
 import express, { Request, Response, NextFunction } from 'express'
@@ -18,13 +18,7 @@ const app = express()
 
 app.use(rateLimit(rateLimitConfig))
 
-const logger = winston.createLogger({
-    level: 'info',
-    transports: [
-        new winston.transports.Console({ format: winston.format.simple() }),
-        new winston.transports.File({ filename: 'combined.log' }),
-    ],
-})
+app.use(helmet())
 
 app.use(
     cors({
@@ -33,32 +27,36 @@ app.use(
         credentials: true,
     })
 )
+
 app.use(cookieParser())
-app.use(serveStatic(path.join(__dirname, 'public')))
+app.use(express.urlencoded({ extended: true, limit: '10kb' }))
+app.use(express.json({ limit: '10kb' }))
+
+app.use(mongoSanitize())
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
-    logger.info(`${req.method} ${req.url}`)
     next()
 })
 
+app.use(serveStatic(path.join(__dirname, 'public')))
+
 app.use((err: Error, _req: Request, _res: Response, next: NextFunction) => {
-    logger.error(`${err.message}`)
     next(err)
 })
 
-app.use(express.urlencoded({ extended: true, limit: '10kb' }))
-app.use(express.json({ limit: '10kb' }))
-app.use(mongoSanitize());
 app.use(routes)
+
 app.use(errors())
+
 app.use(errorHandler)
 
 const bootstrap = async () => {
     try {
-        await mongoose.connect(DB_ADDRESS)
-        await app.listen(PORT, () =>
-            console.log('Server is running on port', PORT)
-        )
+        await mongoose.connect(DB_ADDRESS, {})
+
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`)
+        })
     } catch (error) {
         console.error('Error connecting to the database:', error)
     }

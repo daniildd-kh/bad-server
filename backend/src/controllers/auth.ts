@@ -9,23 +9,43 @@ import ConflictError from '../errors/conflict-error'
 import NotFoundError from '../errors/not-found-error'
 import UnauthorizedError from '../errors/unauthorized-error'
 import User from '../models/user'
-import { generateCsrfToken } from '../utils/generateCsrfToken'
+import { generateCsrfToken } from '../utils/csrf-generator'
+
+const createTokensAndSetCookies = (res: Response, user: any) => {
+    const accessToken = user.generateAccessToken()
+    const refreshToken = user.generateRefreshToken()
+
+    res.cookie(
+        REFRESH_TOKEN.cookie.name,
+        refreshToken,
+        REFRESH_TOKEN.cookie.options
+    )
+    res.cookie('csrfToken', generateCsrfToken())
+
+    return { accessToken, refreshToken }
+}
+
+const handleUserCreationError = (error: any, next: NextFunction) => {
+    if (error instanceof MongooseError.ValidationError) {
+        return next(new BadRequestError(error.message))
+    }
+    if (error instanceof Error && error.message.includes('E11000')) {
+        return next(
+            new ConflictError('Пользователь с таким email уже существует')
+        )
+    }
+    return next(error)
+}
 
 // POST /auth/login
 const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password } = req.body
         const user = await User.findUserByCredentials(email, password)
-        const accessToken = user.generateAccessToken()
-        const refreshToken = await user.generateRefreshToken()
-
-        res.cookie(
-            REFRESH_TOKEN.cookie.name,
-            refreshToken,
-            REFRESH_TOKEN.cookie.options
+        const { accessToken, refreshToken } = createTokensAndSetCookies(
+            res,
+            user
         )
-
-        res.cookie('csrfToken', generateCsrfToken())
 
         return res.json({
             success: true,
@@ -43,16 +63,11 @@ const register = async (req: Request, res: Response, next: NextFunction) => {
         const { email, password, name } = req.body
         const newUser = new User({ email, password, name })
         await newUser.save()
-        const accessToken = newUser.generateAccessToken()
-        const refreshToken = await newUser.generateRefreshToken()
 
-        res.cookie(
-            REFRESH_TOKEN.cookie.name,
-            refreshToken,
-            REFRESH_TOKEN.cookie.options
+        const { accessToken, refreshToken } = createTokensAndSetCookies(
+            res,
+            newUser
         )
-
-        res.cookie('csrfToken', generateCsrfToken())
 
         return res.status(constants.HTTP_STATUS_CREATED).json({
             success: true,
@@ -60,15 +75,7 @@ const register = async (req: Request, res: Response, next: NextFunction) => {
             accessToken,
         })
     } catch (error) {
-        if (error instanceof MongooseError.ValidationError) {
-            return next(new BadRequestError(error.message))
-        }
-        if (error instanceof Error && error.message.includes('E11000')) {
-            return next(
-                new ConflictError('Пользователь с таким email уже существует')
-            )
-        }
-        return next(error)
+        return handleUserCreationError(error, next)
     }
 }
 
@@ -92,12 +99,7 @@ const getCurrentUser = async (
     }
 }
 
-// Можно лучше: вынести общую логику получения данных из refresh токена
-const deleteRefreshTokenInUser = async (
-    req: Request,
-    _res: Response,
-    _next: NextFunction
-) => {
+const deleteRefreshTokenInUser = async (req: Request) => {
     const { cookies } = req
     const rfTkn = cookies[REFRESH_TOKEN.cookie.name]
 
@@ -109,9 +111,9 @@ const deleteRefreshTokenInUser = async (
         rfTkn,
         REFRESH_TOKEN.secret
     ) as JwtPayload
-    const user = await User.findOne({
-        _id: decodedRefreshTkn._id,
-    }).orFail(() => new UnauthorizedError('Пользователь не найден в базе'))
+    const user = await User.findOne({ _id: decodedRefreshTkn._id }).orFail(
+        () => new UnauthorizedError('Пользователь не найден в базе')
+    )
 
     const rTknHash = crypto
         .createHmac('sha256', REFRESH_TOKEN.secret)
@@ -119,48 +121,37 @@ const deleteRefreshTokenInUser = async (
         .digest('hex')
 
     user.tokens = user.tokens.filter((tokenObj) => tokenObj.token !== rTknHash)
-
     await user.save()
 
     return user
 }
 
-// Реализация удаления токена из базы может отличаться
-// GET  /auth/logout
+// GET /auth/logout
 const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await deleteRefreshTokenInUser(req, res, next)
+        await deleteRefreshTokenInUser(req)
         const expireCookieOptions = {
             ...REFRESH_TOKEN.cookie.options,
             maxAge: -1,
         }
         res.cookie(REFRESH_TOKEN.cookie.name, '', expireCookieOptions)
-        res.status(200).json({
-            success: true,
-        })
+        res.status(200).json({ success: true })
     } catch (error) {
         next(error)
     }
 }
 
-// GET  /auth/token
+// GET /auth/token
 const refreshAccessToken = async (
     req: Request,
     res: Response,
     next: NextFunction
 ) => {
     try {
-        const userWithRefreshTkn = await deleteRefreshTokenInUser(
-            req,
+        const userWithRefreshTkn = await deleteRefreshTokenInUser(req)
+        const { accessToken, refreshToken } = createTokensAndSetCookies(
             res,
-            next
-        )
-        const accessToken = await userWithRefreshTkn.generateAccessToken()
-        const refreshToken = await userWithRefreshTkn.generateRefreshToken()
-        res.cookie(
-            REFRESH_TOKEN.cookie.name,
-            refreshToken,
-            REFRESH_TOKEN.cookie.options
+            userWithRefreshTkn
         )
         return res.json({
             success: true,
@@ -172,6 +163,7 @@ const refreshAccessToken = async (
     }
 }
 
+// GET /auth/user/roles
 const getCurrentUserRoles = async (
     req: Request,
     res: Response,
@@ -179,9 +171,7 @@ const getCurrentUserRoles = async (
 ) => {
     const userId = res.locals.user._id
     try {
-        await User.findById(userId, req.body, {
-            new: true,
-        }).orFail(
+        await User.findById(userId, req.body, { new: true }).orFail(
             () =>
                 new NotFoundError(
                     'Пользователь по заданному id отсутствует в базе'
@@ -193,6 +183,7 @@ const getCurrentUserRoles = async (
     }
 }
 
+// PATCH /auth/user
 const updateCurrentUser = async (
     req: Request,
     res: Response,

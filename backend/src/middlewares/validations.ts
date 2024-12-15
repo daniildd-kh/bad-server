@@ -2,14 +2,14 @@ import { Joi, celebrate } from 'celebrate'
 import { Types } from 'mongoose'
 
 // eslint-disable-next-line no-useless-escape
-export const phoneRegExp = /^\+?\d{1,4}?[-.\s]?\(?\d{1,4}?\)?[-.\s]?\d{1,9}$/
+export const phoneRegExp = /^\+?(\d{1,4})?[-.\s]?(\(?\d{1,4}?\))?[-.\s]?\d{1,9}$/
 
 export enum PaymentType {
     Card = 'card',
     Online = 'online',
 }
 
-// валидация id
+// Валидация для тела заказа
 export const validateOrderBody = celebrate({
     body: Joi.object().keys({
         items: Joi.array()
@@ -18,7 +18,7 @@ export const validateOrderBody = celebrate({
                     if (Types.ObjectId.isValid(value)) {
                         return value
                     }
-                    return helpers.message({ custom: 'Невалидный id' })
+                    return helpers.message({ custom: 'Невалидный id товара' })
                 })
             )
             .messages({
@@ -28,8 +28,7 @@ export const validateOrderBody = celebrate({
             .valid(...Object.values(PaymentType))
             .required()
             .messages({
-                'string.valid':
-                    'Указано не валидное значение для способа оплаты, возможные значения - "card", "online"',
+                'string.valid': 'Не валидное значение для способа оплаты, возможные значения - "card", "online"',
                 'string.empty': 'Не указан способ оплаты',
             }),
         email: Joi.string().email().required().messages({
@@ -37,6 +36,7 @@ export const validateOrderBody = celebrate({
         }),
         phone: Joi.string().required().pattern(phoneRegExp).messages({
             'string.empty': 'Не указан телефон',
+            'string.pattern.base': 'Некорректный формат телефона',
         }),
         address: Joi.string().required().messages({
             'string.empty': 'Не указан адрес',
@@ -48,19 +48,17 @@ export const validateOrderBody = celebrate({
     }),
 })
 
-// валидация товара.
-// name и link - обязательные поля, name - от 2 до 30 символов, link - валидный url
 export const validateProductBody = celebrate({
     body: Joi.object().keys({
         title: Joi.string().required().min(2).max(30).messages({
-            'string.min': 'Минимальная длина поля "name" - 2',
-            'string.max': 'Максимальная длина поля "name" - 30',
+            'string.min': 'Минимальная длина поля "title" - 2',
+            'string.max': 'Максимальная длина поля "title" - 30',
             'string.empty': 'Поле "title" должно быть заполнено',
         }),
         image: Joi.object().keys({
             fileName: Joi.string().required(),
             originalName: Joi.string().required(),
-        }),
+        }).required(),
         category: Joi.string().required().messages({
             'string.empty': 'Поле "category" должно быть заполнено',
         }),
@@ -71,11 +69,12 @@ export const validateProductBody = celebrate({
     }),
 })
 
+// Валидация для обновления товара
 export const validateProductUpdateBody = celebrate({
     body: Joi.object().keys({
         title: Joi.string().min(2).max(30).messages({
-            'string.min': 'Минимальная длина поля "name" - 2',
-            'string.max': 'Максимальная длина поля "name" - 30',
+            'string.min': 'Минимальная длина поля "title" - 2',
+            'string.max': 'Максимальная длина поля "title" - 30',
         }),
         image: Joi.object().keys({
             fileName: Joi.string().required(),
@@ -95,7 +94,7 @@ export const validateObjId = celebrate({
                 if (Types.ObjectId.isValid(value)) {
                     return value
                 }
-                return helpers.message({ any: 'Невалидный id' })
+                return helpers.message({ any: 'Невалидный ID товара' })
             }),
     }),
 })

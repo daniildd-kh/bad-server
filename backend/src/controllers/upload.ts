@@ -4,8 +4,7 @@ import fs from 'node:fs/promises'
 import BadRequestError from '../errors/bad-request-error'
 import { fileSizeConfig } from '../config'
 import { allowedTypes } from '../middlewares/file'
-import { checkMimeType } from '../utils/checkMimeTypes'
-
+import { checkType } from '../utils/check-types'
 
 export const uploadFile = async (
     req: Request,
@@ -16,26 +15,30 @@ export const uploadFile = async (
         return next(new BadRequestError('Файл не загружен'))
     }
 
-    if (req.file.size < fileSizeConfig.minSize) {
-        await fs.unlink(req.file.path)
-        return next(new BadRequestError('Размер файла слишком мал'))
-    }
-
-    const mimeType = await checkMimeType(req.file.path);
-    if (!mimeType || !allowedTypes.includes(mimeType)) {
-        await fs.unlink(req.file.path);
-        return next(new BadRequestError('Некорректный формат файла'));
-    }
-
     try {
+        if (req.file.size < fileSizeConfig.minSize) {
+            await fs.unlink(req.file.path)
+            return next(new BadRequestError('Маленький размер файла'))
+        }
+
+        const mimeType = await checkType(req.file.path)
+        if (!mimeType || !allowedTypes.includes(mimeType)) {
+            await fs.unlink(req.file.path)
+            return next(new BadRequestError('Некорректный формат файла'))
+        }
+
         const fileName = process.env.UPLOAD_PATH
             ? `/${process.env.UPLOAD_PATH}/${req.file.filename}`
             : `/${req.file?.filename}`
+
         return res.status(constants.HTTP_STATUS_CREATED).send({
             fileName,
             originalName: req.file?.originalname,
         })
     } catch (error) {
+        if (req.file?.path) {
+            await fs.unlink(req.file.path)
+        }
         return next(error)
     }
 }

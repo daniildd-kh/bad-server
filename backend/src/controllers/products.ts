@@ -6,26 +6,38 @@ import BadRequestError from '../errors/bad-request-error'
 import ConflictError from '../errors/conflict-error'
 import NotFoundError from '../errors/not-found-error'
 import Product from '../models/product'
-import movingFile from '../utils/movingFile'
+import moveFile from '../utils/move-file'
+
+const moveProductImage = (image: any) => {
+    if (image) {
+        moveFile(
+            image.fileName,
+            join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
+            join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
+        )
+    }
+}
 
 // GET /product
 const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { page = 1, limit = 5 } = req.query
+        const normalizedPage = Number(page)
+        const normalizedLimit = Math.min(Number(limit), 50) // Ограничиваем limit
         const options = {
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (normalizedPage - 1) * normalizedLimit,
+            limit: normalizedLimit,
         }
         const products = await Product.find({}, null, options)
         const totalProducts = await Product.countDocuments({})
-        const totalPages = Math.ceil(totalProducts / Number(limit))
+        const totalPages = Math.ceil(totalProducts / normalizedLimit)
         return res.send({
             items: products,
             pagination: {
                 totalProducts,
                 totalPages,
-                currentPage: Number(page),
-                pageSize: Number(limit),
+                currentPage: normalizedPage,
+                pageSize: normalizedLimit,
             },
         })
     } catch (err) {
@@ -43,13 +55,7 @@ const createProduct = async (
         const { description, category, price, title, image } = req.body
 
         // Переносим картинку из временной папки
-        if (image) {
-            movingFile(
-                image.fileName,
-                join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
-                join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
-            )
-        }
+        moveProductImage(image)
 
         const product = await Product.create({
             description,
@@ -84,13 +90,7 @@ const updateProduct = async (
         const { image } = req.body
 
         // Переносим картинку из временной папки
-        if (image) {
-            movingFile(
-                image.fileName,
-                join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
-                join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
-            )
-        }
+        moveProductImage(image)
 
         const product = await Product.findByIdAndUpdate(
             productId,

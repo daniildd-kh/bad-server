@@ -29,58 +29,41 @@ export const getOrders = async (
             search,
         } = req.query
 
-        const normalizedLimit = Math.min(Number(limit), 5).toString()
+        const limitValue = Math.min(Number(limit), 10).toString()
         const filters: FilterQuery<Partial<IOrder>> = {}
 
-        if (status) {
-            if (typeof status === 'string' && /^[a-zA-Z0-9_-]+$/.test(status)) {
-                filters.status = status;
-            } else {
-                throw new BadRequestError('Передан невалидный параметр статуса');
-            }
+        if (status && /^[a-zA-Z0-9_-]+$/.test(status as string)) {
+            filters.status = status
+        } else if (status) {
+            throw new BadRequestError('Передан невалидный параметр статуса')
         }
-        
+
         if (search) {
             if (/[^\w\s]/.test(search as string)) {
-                throw new BadRequestError('Передан невалидный поисковый запрос');
+                throw new BadRequestError('Передан невалидный поисковый запрос')
             }
+            const searchRegex = new RegExp(search as string, 'i')
+            const searchNumber = Number(search)
+
+            filters.$or = [
+                { 'products.title': searchRegex },
+                { orderNumber: searchNumber },
+            ]
         }
 
-        if (status) {
-            if (typeof status === 'object') {
-                Object.assign(filters, status)
-            }
-            if (typeof status === 'string') {
-                filters.status = status
-            }
+        if (totalAmountFrom || totalAmountTo) {
+            filters.totalAmount = {}
+            if (totalAmountFrom)
+                filters.totalAmount.$gte = Number(totalAmountFrom)
+            if (totalAmountTo) filters.totalAmount.$lte = Number(totalAmountTo)
         }
 
-        if (totalAmountFrom) {
-            filters.totalAmount = {
-                ...filters.totalAmount,
-                $gte: Number(totalAmountFrom),
-            }
-        }
-
-        if (totalAmountTo) {
-            filters.totalAmount = {
-                ...filters.totalAmount,
-                $lte: Number(totalAmountTo),
-            }
-        }
-
-        if (orderDateFrom) {
-            filters.createdAt = {
-                ...filters.createdAt,
-                $gte: new Date(orderDateFrom as string),
-            }
-        }
-
-        if (orderDateTo) {
-            filters.createdAt = {
-                ...filters.createdAt,
-                $lte: new Date(orderDateTo as string),
-            }
+        if (orderDateFrom || orderDateTo) {
+            filters.createdAt = {}
+            if (orderDateFrom)
+                filters.createdAt.$gte = new Date(orderDateFrom as string)
+            if (orderDateTo)
+                filters.createdAt.$lte = new Date(orderDateTo as string)
         }
 
         const aggregatePipeline: any[] = [
@@ -105,35 +88,16 @@ export const getOrders = async (
             { $unwind: '$products' },
         ]
 
-        if (search) {
-            const searchRegex = new RegExp(search as string, 'i')
-            const searchNumber = Number(search)
-
-            const searchConditions: any[] = [{ 'products.title': searchRegex }]
-
-            if (!Number.isNaN(searchNumber)) {
-                searchConditions.push({ orderNumber: searchNumber })
-            }
-
-            aggregatePipeline.push({
-                $match: {
-                    $or: searchConditions,
-                },
-            })
-
-            filters.$or = searchConditions
-        }
-
+        // Сортировка
         const sort: { [key: string]: any } = {}
-
         if (sortField && sortOrder) {
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Number(page) - 1) * Number(normalizedLimit) },
-            { $limit: Number(normalizedLimit) },
+            { $skip: (Number(page) - 1) * Number(limitValue) },
+            { $limit: Number(limitValue) },
             {
                 $group: {
                     _id: '$_id',
@@ -149,7 +113,7 @@ export const getOrders = async (
 
         const orders = await Order.aggregate(aggregatePipeline)
         const totalOrders = await Order.countDocuments(filters)
-        const totalPages = Math.ceil(totalOrders / Number(normalizedLimit))
+        const totalPages = Math.ceil(totalOrders / Number(limitValue))
 
         res.status(200).json({
             orders,
@@ -157,7 +121,7 @@ export const getOrders = async (
                 totalOrders,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(normalizedLimit),
+                pageSize: Number(limitValue),
             },
         })
     } catch (error) {
@@ -173,10 +137,10 @@ export const getOrdersCurrentUser = async (
     try {
         const userId = res.locals.user._id
         const { search, page = 1, limit = 5 } = req.query
-        const normalizedLimit = Math.min(Number(limit), 5)
+        const limitValue = Math.min(Number(limit), 5)
         const options = {
             skip: (Number(page) - 1) * Number(limit),
-            limit: Number(normalizedLimit),
+            limit: Number(limitValue),
         }
 
         const user = await User.findById(userId)
@@ -222,7 +186,7 @@ export const getOrdersCurrentUser = async (
         }
 
         const totalOrders = orders.length
-        const totalPages = Math.ceil(totalOrders / Number(normalizedLimit))
+        const totalPages = Math.ceil(totalOrders / Number(limitValue))
 
         orders = orders.slice(options.skip, options.skip + options.limit)
 
@@ -232,7 +196,7 @@ export const getOrdersCurrentUser = async (
                 totalOrders,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(normalizedLimit),
+                pageSize: Number(limitValue),
             },
         })
     } catch (error) {
